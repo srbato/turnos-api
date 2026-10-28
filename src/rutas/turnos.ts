@@ -1,5 +1,6 @@
 import { Router } from "express";
 
+import { enviarOfertasPendientes, horarioReservado } from "../adelantos";
 import { motivoSinAtencion } from "../atencion";
 import { prisma } from "../prisma";
 import { esFecha, esHora, fechaDeHoy, parseId } from "../validaciones";
@@ -120,6 +121,10 @@ rutasTurnos.post("/turnos", async (req, res) => {
   if (await horarioOcupado(idMedico, fecha, hora, null)) {
     return res.status(409).json({ error: "Ese horario ya está ocupado" });
   }
+  // Un horario ofrecido a la lista de espera queda reservado hasta que el paciente responda.
+  if (await horarioReservado(idMedico, fecha, hora, null)) {
+    return res.status(409).json({ error: "Ese horario está ofrecido a otro paciente de la lista de espera" });
+  }
 
   // La obra social es opcional (null = particular), pero si llega tiene que ser una del paciente.
   let idCobertura: string | null = null;
@@ -145,6 +150,11 @@ rutasTurnos.post("/turnos", async (req, res) => {
     },
     include: DATOS_DEL_TURNO,
   });
+
+  // Si el paciente se anotó en la lista de espera, puede haber un horario libre para ofrecerle ya.
+  if (adelanto) {
+    await enviarOfertasPendientes(medico.consultorioId);
+  }
 
   // 201 indica que se creó un recurso nuevo.
   res.status(201).json(turno);
@@ -192,6 +202,9 @@ rutasTurnos.patch("/turnos/:id", async (req, res) => {
     if (await horarioOcupado(turno.medicoId, fecha, hora, id)) {
       return res.status(409).json({ error: "Ese horario ya está ocupado" });
     }
+    if (await horarioReservado(turno.medicoId, fecha, hora, id)) {
+      return res.status(409).json({ error: "Ese horario está ofrecido a otro paciente de la lista de espera" });
+    }
     data.fecha = fecha;
     data.hora = hora;
     data.estado = "pendiente"; // queda pendiente hasta que se vuelva a confirmar
@@ -221,6 +234,8 @@ rutasTurnos.patch("/turnos/:id", async (req, res) => {
   }
 
   const actualizado = await prisma.turno.update({ where: { id }, data, include: DATOS_DEL_TURNO });
+  // Si se canceló o se movió, su horario quedó libre; si entró o salió de la lista, cambia a quién ofrecerle.
+  await enviarOfertasPendientes(turno.medico.consultorioId);
   res.json(actualizado);
 });
 

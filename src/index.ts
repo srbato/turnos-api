@@ -11,6 +11,7 @@ import { rutasEstudios } from "./rutas/estudios";
 import { rutasLogin } from "./rutas/login";
 import { rutasMedicamentos } from "./rutas/medicamentos";
 import { rutasMedicos } from "./rutas/medicos";
+import { rutasOfertas } from "./rutas/ofertas";
 import { rutasPacientes } from "./rutas/pacientes";
 import { rutasRecetas } from "./rutas/recetas";
 import { rutasSecretarias } from "./rutas/secretarias";
@@ -49,6 +50,7 @@ app.use("/api", rutasTurnos); // /api/turnos (con su consulta, preconsulta y avi
 app.use("/api", rutasRecetas); // /api/recetas
 app.use("/api", rutasMedicamentos); // /api/medicamentos
 app.use("/api", rutasEstudios); // /api/estudios
+app.use("/api", rutasOfertas); // /api/ofertas y /api/horarios-publicados (lista de espera)
 
 // -----------------------------------------------------------------------------
 // 3. Errores
