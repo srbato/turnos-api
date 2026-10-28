@@ -6,7 +6,11 @@ import cors from "cors";
 import express, { NextFunction, Request, Response } from "express";
 
 // Rutas de cada recurso (cada archivo de src/rutas agrupa las de un recurso).
+import { rutasConsultorios } from "./rutas/consultorios";
 import { rutasLogin } from "./rutas/login";
+import { rutasMedicos } from "./rutas/medicos";
+import { rutasPacientes } from "./rutas/pacientes";
+import { rutasSecretarias } from "./rutas/secretarias";
 import { rutasTurnos } from "./rutas/turnos";
 
 // -----------------------------------------------------------------------------
@@ -17,9 +21,10 @@ const app = express();
 const port = Number(process.env.PORT ?? 3000);
 
 // CORS permite que la app de Expo se conecte a la API desde otro origen.
-// express.json() transforma el body JSON en req.body.
+// express.json() transforma el body JSON en req.body. El límite se sube a 5 MB porque las fotos de perfil viajan
+// dentro del JSON (el límite que trae Express es de 100 KB, y una foto lo supera).
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: "5mb" }));
 
 // -----------------------------------------------------------------------------
 // 2. Rutas de la API REST
@@ -33,6 +38,10 @@ app.get("/api/health", (_req, res) => {
 
 // Todas las rutas de los recursos empiezan con /api.
 app.use("/api", rutasLogin); // POST /api/login
+app.use("/api", rutasConsultorios); // /api/consultorios y /api/coberturas
+app.use("/api", rutasPacientes); // /api/pacientes
+app.use("/api", rutasMedicos); // /api/medicos
+app.use("/api", rutasSecretarias); // /api/secretarias
 app.use("/api", rutasTurnos); // /api/turnos
 
 // -----------------------------------------------------------------------------

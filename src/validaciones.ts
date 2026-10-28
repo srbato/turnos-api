@@ -28,6 +28,41 @@ export function esHora(texto: unknown): boolean {
   return Number.isInteger(horas) && Number.isInteger(minutos) && horas >= 0 && horas <= 23 && minutos >= 0 && minutos <= 59;
 }
 
+// Un texto sin espacios al principio ni al final. Si no llega nada (undefined o null), devuelve "".
+export function texto(valor: unknown) {
+  return String(valor ?? "").trim();
+}
+
+// ¿Parece un email? (tiene arroba y punto, como pide la app al registrarse)
+export function esEmail(valor: unknown) {
+  const email = texto(valor);
+  return email.includes("@") && email.includes(".");
+}
+
+// Deja solo los números: "40.123-456" -> "40123456".
+export function soloNumeros(valor: unknown) {
+  let numeros = "";
+  for (const caracter of texto(valor)) {
+    if (caracter >= "0" && caracter <= "9") {
+      numeros += caracter;
+    }
+  }
+  return numeros;
+}
+
+// Pone los puntos de un DNI: "40123456" -> "40.123.456", "7123456" -> "7.123.456".
+export function formatearDni(numeros: string) {
+  let resultado = "";
+  for (let i = 0; i < numeros.length; i++) {
+    const quedan = numeros.length - i;
+    if (i > 0 && quedan % 3 === 0) {
+      resultado += ".";
+    }
+    resultado += numeros[i];
+  }
+  return resultado;
+}
+
 // La fecha de hoy como texto 'AAAA-MM-DD', el formato en que se guardan los turnos.
 export function fechaDeHoy() {
   const hoy = new Date();

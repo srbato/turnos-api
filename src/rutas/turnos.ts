@@ -1,5 +1,6 @@
 import { Router } from "express";
 
+import { motivoSinAtencion } from "../atencion";
 import { prisma } from "../prisma";
 import { esFecha, esHora, fechaDeHoy, parseId } from "../validaciones";
 
@@ -21,29 +22,6 @@ const DATOS_DEL_TURNO = {
   avisos: true,
   consulta: true,
 };
-
-type MedicoConFranjas = {
-  estado: string;
-  licenciaHasta: string | null;
-  franjas: { dia: number; desde: string; hasta: string }[];
-};
-
-// ¿El médico atiende en esa fecha y hora? No tiene que estar de baja ni de licencia ese día, y tiene que tener una
-// franja de ese día de la semana que incluya la hora.
-function atiendeEnEseHorario(medico: MedicoConFranjas, fecha: string, hora: string) {
-  if (medico.estado === "baja") {
-    return false;
-  }
-  // La licencia dura hasta el día anterior a licenciaHasta (ese día ya vuelve). Sin fecha, es indefinida.
-  if (medico.estado === "licencia" && (medico.licenciaHasta === null || fecha < medico.licenciaHasta)) {
-    return false;
-  }
-  const [anio, mes, dia] = fecha.split("-").map(Number);
-  const diaDeLaSemana = new Date(anio, mes - 1, dia).getDay();
-  return medico.franjas.some(
-    (franja) => franja.dia === diaDeLaSemana && franja.desde <= hora && hora < franja.hasta
-  );
-}
 
 // ¿Ese horario del médico ya está tomado por otro turno? Los cancelados liberan el horario.
 // idIgnorado sirve al reprogramar: el propio turno no cuenta como ocupado.
@@ -132,8 +110,10 @@ rutasTurnos.post("/turnos", async (req, res) => {
   if (paciente.consultorioId !== medico.consultorioId) {
     return res.status(400).json({ error: "El paciente y el médico son de consultorios distintos" });
   }
-  if (!atiendeEnEseHorario(medico, fecha, hora)) {
-    return res.status(400).json({ error: "El médico no atiende en ese día y horario" });
+  // Si el médico no atiende ese día u horario, el error dice por qué (de licencia, no atiende ese día, etc.).
+  const motivo = motivoSinAtencion(medico, fecha, hora);
+  if (motivo) {
+    return res.status(400).json({ error: motivo });
   }
   // 409 Conflict: el pedido es correcto, pero choca con otro turno que ya existe.
   if (await horarioOcupado(idMedico, fecha, hora, null)) {
@@ -204,8 +184,9 @@ rutasTurnos.patch("/turnos/:id", async (req, res) => {
     if (fecha < fechaDeHoy()) {
       return res.status(400).json({ error: "No se puede reprogramar a una fecha que ya pasó" });
     }
-    if (!atiendeEnEseHorario(turno.medico, fecha, hora)) {
-      return res.status(400).json({ error: "El médico no atiende en ese día y horario" });
+    const motivo = motivoSinAtencion(turno.medico, fecha, hora);
+    if (motivo) {
+      return res.status(400).json({ error: motivo });
     }
     if (await horarioOcupado(turno.medicoId, fecha, hora, id)) {
       return res.status(409).json({ error: "Ese horario ya está ocupado" });
