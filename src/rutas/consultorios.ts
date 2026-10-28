@@ -32,7 +32,8 @@ rutasConsultorios.get("/consultorios/:id", async (req, res) => {
 
 // PATCH /api/consultorios/:id
 // Secretaría cambia los datos o la configuración del consultorio. Todos los campos son opcionales:
-// nombre, direccion, ciudad, telefono, atencion, duracionTurno, puntosRiesgoMedio, puntosRiesgoAlto, avisosAntesDeActuar.
+// nombre, direccion, ciudad, telefono, atencion, duracionTurno, sobreturnos, recordatorioAutomatico,
+// puntosRiesgoMedio, puntosRiesgoAlto, avisosAntesDeActuar.
 rutasConsultorios.patch("/consultorios/:id", async (req, res) => {
   const id = parseId(req.params.id);
   if (!id) {
@@ -44,8 +45,19 @@ rutasConsultorios.patch("/consultorios/:id", async (req, res) => {
     return res.status(404).json({ error: "No existe un consultorio con ese id" });
   }
 
-  const { nombre, direccion, ciudad, telefono, atencion, duracionTurno, puntosRiesgoMedio, puntosRiesgoAlto, avisosAntesDeActuar } =
-    req.body;
+  const {
+    nombre,
+    direccion,
+    ciudad,
+    telefono,
+    atencion,
+    duracionTurno,
+    sobreturnos,
+    recordatorioAutomatico,
+    puntosRiesgoMedio,
+    puntosRiesgoAlto,
+    avisosAntesDeActuar,
+  } = req.body;
   const data: {
     nombre?: string;
     direccion?: string;
@@ -53,6 +65,8 @@ rutasConsultorios.patch("/consultorios/:id", async (req, res) => {
     telefono?: string;
     atencion?: string;
     duracionTurno?: number;
+    sobreturnos?: number;
+    recordatorioAutomatico?: boolean;
     puntosRiesgoMedio?: number;
     puntosRiesgoAlto?: number;
     avisosAntesDeActuar?: number;
@@ -80,6 +94,13 @@ rutasConsultorios.patch("/consultorios/:id", async (req, res) => {
     }
     data.duracionTurno = Number(duracionTurno);
   }
+  if (sobreturnos !== undefined) {
+    if (!Number.isInteger(Number(sobreturnos)) || Number(sobreturnos) < 0) {
+      return res.status(400).json({ error: "Los sobreturnos tienen que ser un número entero" });
+    }
+    data.sobreturnos = Number(sobreturnos);
+  }
+  if (recordatorioAutomatico !== undefined) data.recordatorioAutomatico = Boolean(recordatorioAutomatico);
 
   // Reglas de riesgo: números enteros, y el riesgo alto empieza en más puntos que el medio.
   if (puntosRiesgoMedio !== undefined) data.puntosRiesgoMedio = Number(puntosRiesgoMedio);

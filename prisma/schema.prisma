@@ -25,16 +25,18 @@ datasource db {
 // El consultorio y su configuración (lo que edita Secretaría en Ajustes).
 // Todo lo demás (pacientes, médicos, secretarias) pertenece a un consultorio.
 model Consultorio {
-  id                  Int    @id @default(autoincrement())
-  nombre              String
-  direccion           String
-  ciudad              String @default("")
-  telefono            String @default("")
-  atencion            String @default("") // días y horarios de atención, como texto ("Lun a vie de 8 a 20")
-  duracionTurno       Int    @default(20) // minutos de cada turno: 15, 20, 30 o 45
-  puntosRiesgoMedio   Int    @default(1) // puntos de ausentismo desde los que el riesgo es medio
-  puntosRiesgoAlto    Int    @default(2) // puntos desde los que el riesgo es alto
-  avisosAntesDeActuar Int    @default(3) // avisos que Secretaría manda antes de poder cancelar por riesgo
+  id                     Int     @id @default(autoincrement())
+  nombre                 String
+  direccion              String
+  ciudad                 String  @default("")
+  telefono               String  @default("")
+  atencion               String  @default("") // días y horarios de atención, como texto ("Lun a vie de 8 a 20")
+  duracionTurno          Int     @default(20) // minutos de cada turno: 15, 20, 30 o 45
+  sobreturnos            Int     @default(2) // turnos extra que se pueden dar por día
+  recordatorioAutomatico Boolean @default(true) // avisar al paciente 24 h antes del turno
+  puntosRiesgoMedio      Int     @default(1) // puntos de ausentismo desde los que el riesgo es medio
+  puntosRiesgoAlto       Int     @default(2) // puntos desde los que el riesgo es alto
+  avisosAntesDeActuar    Int     @default(3) // avisos que Secretaría manda antes de poder cancelar por riesgo
 
   pacientes   Paciente[]
   medicos     Medico[]

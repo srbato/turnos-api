@@ -8,14 +8,22 @@ import { parseId, texto } from "../validaciones";
 export const rutasMedicamentos = Router();
 
 // GET /api/medicamentos?pacienteId=1
-// Devuelve los medicamentos propios de un paciente.
+// Devuelve los medicamentos propios de un paciente (lo que ve el paciente en su app).
+// GET /api/medicamentos?consultorioId=1
+// Devuelve los de todos los pacientes del consultorio (lo que usan los médicos para ver la medicación y detectar
+// interacciones de cualquier paciente).
 rutasMedicamentos.get("/medicamentos", async (req, res) => {
   const pacienteId = parseId(req.query.pacienteId);
-  if (!pacienteId) {
-    return res.status(400).json({ error: "Falta el paciente" });
+  const consultorioId = parseId(req.query.consultorioId);
+  if (!pacienteId && !consultorioId) {
+    return res.status(400).json({ error: "Falta el paciente o el consultorio" });
   }
 
-  const medicamentos = await prisma.medicamentoPropio.findMany({ where: { pacienteId }, orderBy: { nombre: "asc" } });
+  // El filtro que no llega queda en undefined, y Prisma lo ignora.
+  const medicamentos = await prisma.medicamentoPropio.findMany({
+    where: { pacienteId: pacienteId ?? undefined, paciente: { consultorioId: consultorioId ?? undefined } },
+    orderBy: { nombre: "asc" },
+  });
   res.json(medicamentos);
 });
 
