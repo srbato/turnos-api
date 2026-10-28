@@ -1,0 +1,312 @@
+// Base de datos de MiConsultorio.
+//
+// Criterios:
+//   - Cada dato se guarda una sola vez. Lo que se puede calcular (iniciales, especialidad del turno, puntaje de
+//     riesgo, abreviatura de una receta) no se guarda: lo calcula la app o la API.
+//   - Fechas de calendario ('AAAA-MM-DD') y horas ('HH:MM') se guardan como texto, igual que en la app: un turno
+//     "el 12/10 a las 11:15" no depende de la zona horaria. Los momentos exactos (cuándo se creó algo) son DateTime.
+//   - Los estados se guardan como texto; los valores posibles están en el comentario de cada campo.
+//   - Las listas (obras sociales de un paciente, franjas de un médico, avisos de un turno) son tablas propias,
+//     porque SQLite no tiene columnas de tipo lista.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// -----------------------------------------------------------------------------
+// Consultorio
+// -----------------------------------------------------------------------------
+
+// El consultorio y su configuración (lo que edita Secretaría en Ajustes).
+// Todo lo demás (pacientes, médicos, secretarias) pertenece a un consultorio.
+model Consultorio {
+  id                  Int    @id @default(autoincrement())
+  nombre              String
+  direccion           String
+  ciudad              String @default("")
+  telefono            String @default("")
+  atencion            String @default("") // días y horarios de atención, como texto ("Lun a vie de 8 a 20")
+  duracionTurno       Int    @default(20) // minutos de cada turno: 15, 20, 30 o 45
+  puntosRiesgoMedio   Int    @default(1) // puntos de ausentismo desde los que el riesgo es medio
+  puntosRiesgoAlto    Int    @default(2) // puntos desde los que el riesgo es alto
+  avisosAntesDeActuar Int    @default(3) // avisos que Secretaría manda antes de poder cancelar por riesgo
+
+  pacientes   Paciente[]
+  medicos     Medico[]
+  secretarias Secretaria[]
+}
+
+// -----------------------------------------------------------------------------
+// Obras sociales
+// -----------------------------------------------------------------------------
+
+// Catálogo de obras sociales (con su plan). El id es un texto fijo, el mismo que usa la app ("osde-210").
+model Cobertura {
+  id     String @id
+  nombre String // "OSDE 210"
+
+  pacientes PacienteCobertura[]
+  medicos   Medico[] // médicos que la aceptan
+  turnos    Turno[] // turnos sacados con esta obra social
+}
+
+// -----------------------------------------------------------------------------
+// Personas
+// -----------------------------------------------------------------------------
+
+// Un paciente de un consultorio. La misma persona (mismo DNI) puede ser paciente de dos consultorios, con una
+// ficha distinta en cada uno: por eso el DNI y el email se repiten entre consultorios, pero no dentro de uno.
+model Paciente {
+  id            Int      @id @default(autoincrement())
+  consultorioId Int
+  dni           String // "40.123.456"
+  nombre        String
+  apellido      String
+  email         String
+  contrasena    String
+  telefono      String   @default("")
+  domicilio     String   @default("")
+  alergias      String   @default("") // texto libre; lo ve el médico
+  alerta        String   @default("") // aviso importante para el médico ("" si no hay)
+  fotoUri       String? // foto de perfil (data URI); null muestra las iniciales
+  faltas        Int      @default(0) // faltas de antes de usar la app (las nuevas salen de los turnos "ausente")
+  asistencias   Int      @default(0) // asistencias de antes de usar la app
+  creadoEl      DateTime @default(now())
+
+  consultorio  Consultorio         @relation(fields: [consultorioId], references: [id])
+  coberturas   PacienteCobertura[]
+  turnos       Turno[]
+  recetas      Receta[]
+  medicamentos MedicamentoPropio[]
+  estudios     Estudio[]
+
+  @@unique([consultorioId, dni])
+  @@unique([consultorioId, email])
+}
+
+// Las obras sociales de un paciente, cada una con su número de afiliado.
+model PacienteCobertura {
+  id             Int    @id @default(autoincrement())
+  pacienteId     Int
+  coberturaId    String
+  numeroAfiliado String @default("")
+
+  paciente  Paciente  @relation(fields: [pacienteId], references: [id], onDelete: Cascade)
+  cobertura Cobertura @relation(fields: [coberturaId], references: [id])
+
+  @@unique([pacienteId, coberturaId])
+}
+
+// Un médico de un consultorio. Nunca se borra: cuando deja de atender pasa a estado "baja" y conserva su historial.
+model Medico {
+  id            Int      @id @default(autoincrement())
+  consultorioId Int
+  nombre        String // con el título: "Dr. Ricardo Paz"
+  iniciales     String // "RP" (no se calcula del nombre por el "Dr." / "Dra.")
+  especialidad  String
+  matricula     String // "MN 104.233"
+  sala          String // "Consultorio 5"
+  email         String
+  contrasena    String
+  telefono      String   @default("")
+  domicilio     String   @default("")
+  fotoUri       String?
+  estado        String   @default("activo") // "activo" | "licencia" | "baja"
+  licenciaHasta String? // 'AAAA-MM-DD': primer día en que vuelve a atender (solo si está de licencia)
+  creadoEl      DateTime @default(now())
+
+  consultorio        Consultorio        @relation(fields: [consultorioId], references: [id])
+  franjas            FranjaHoraria[]
+  coberturas         Cobertura[] // obras sociales que acepta
+  turnos             Turno[]
+  recetas            Receta[]
+  estudios           Estudio[]
+  horariosPublicados HorarioPublicado[]
+  horariosRetirados  HorarioRetirado[]
+
+  @@unique([consultorioId, matricula])
+  @@unique([consultorioId, email])
+}
+
+// Cuándo atiende un médico: un día de la semana y un rango de horas. Un médico tiene varias.
+model FranjaHoraria {
+  id       Int    @id @default(autoincrement())
+  medicoId Int
+  dia      Int // 0 = domingo, 1 = lunes … 6 = sábado
+  desde    String // 'HH:MM'
+  hasta    String // 'HH:MM' (el último turno tiene que terminar antes de esta hora)
+
+  medico Medico @relation(fields: [medicoId], references: [id], onDelete: Cascade)
+}
+
+// Una secretaria de un consultorio.
+model Secretaria {
+  id            Int     @id @default(autoincrement())
+  consultorioId Int
+  nombre        String
+  dni           String
+  email         String
+  contrasena    String
+  telefono      String  @default("")
+  domicilio     String  @default("")
+  turnoTrabajo  String  @default("") // días y horario en que trabaja, como texto
+  fotoUri       String?
+  estado        String  @default("activo") // "activo" | "licencia"
+
+  consultorio Consultorio @relation(fields: [consultorioId], references: [id])
+
+  @@unique([consultorioId, email])
+}
+
+// -----------------------------------------------------------------------------
+// Turnos
+// -----------------------------------------------------------------------------
+
+// Un turno de un paciente con un médico. No se borra: al cancelarlo cambia de estado (así queda en el historial).
+model Turno {
+  id                Int      @id @default(autoincrement())
+  pacienteId        Int
+  medicoId          Int
+  coberturaId       String? // obra social con la que se sacó (null si fue particular)
+  fecha             String // 'AAAA-MM-DD'
+  hora              String // 'HH:MM'
+  estado            String   @default("pendiente") // "pendiente" | "confirmado" | "cancelado" | "atendido" | "ausente"
+  instrucciones     String   @default("") // indicaciones para el paciente, una por línea ("Ayuno de 8 horas")
+  confirmo          Boolean  @default(false) // el paciente lo confirmó alguna vez (suma a su historial)
+  motivoCancelacion String? // si lo canceló el sistema o Secretaría por riesgo; null si lo canceló una persona
+  adelantoDesde     String? // 'AAAA-MM-DD' desde que está en la lista de espera para adelantarlo (null: no está)
+  reservadoEl       String // 'AAAA-MM-DD' en que se sacó (ordena la lista de espera)
+  creadoEl          DateTime @default(now())
+
+  paciente    Paciente         @relation(fields: [pacienteId], references: [id])
+  medico      Medico           @relation(fields: [medicoId], references: [id])
+  cobertura   Cobertura?       @relation(fields: [coberturaId], references: [id])
+  avisos      Aviso[]
+  consulta    Consulta?
+  preconsulta Preconsulta?
+  ofertas     OfertaAdelanto[]
+}
+
+// Un aviso de Secretaría para que el paciente confirme un turno pendiente.
+model Aviso {
+  id      Int    @id @default(autoincrement())
+  turnoId Int
+  fecha   String // 'AAAA-MM-DD' en que se mandó
+
+  turno Turno @relation(fields: [turnoId], references: [id], onDelete: Cascade)
+}
+
+// Lo que anota el médico al atender un turno. Todas las consultas de un paciente forman su historia clínica.
+model Consulta {
+  id           Int      @id @default(autoincrement())
+  turnoId      Int      @unique // una consulta por turno
+  motivo       String   @default("")
+  diagnostico  String
+  indicaciones String   @default("") // tratamiento, estudios, cuándo volver (las ve el paciente)
+  notas        String   @default("") // notas privadas: solo las ve el médico que las escribió
+  creadaEl     DateTime @default(now())
+
+  turno Turno @relation(fields: [turnoId], references: [id], onDelete: Cascade)
+}
+
+// Las respuestas del paciente a la preconsulta de un turno.
+model Preconsulta {
+  id         Int      @id @default(autoincrement())
+  turnoId    Int      @unique // una preconsulta por turno
+  motivo     String   @default("")
+  duracion   String   @default("") // desde cuándo le pasa
+  sintomas   String   @default("") // los síntomas elegidos, separados por coma ("Fiebre, Tos")
+  medicacion String   @default("")
+  alergias   String   @default("")
+  adicional  String   @default("")
+  enviadaEl  DateTime @default(now())
+
+  turno Turno @relation(fields: [turnoId], references: [id], onDelete: Cascade)
+}
+
+// -----------------------------------------------------------------------------
+// Lista de espera (adelantar turnos)
+// -----------------------------------------------------------------------------
+
+// Un horario libre que se le ofrece a un paciente para adelantar su turno (con el mismo médico).
+model OfertaAdelanto {
+  id       Int      @id @default(autoincrement())
+  turnoId  Int // el turno del paciente que se adelantaría
+  fecha    String // 'AAAA-MM-DD' del horario ofrecido
+  hora     String // 'HH:MM' del horario ofrecido
+  estado   String   @default("enviada") // "enviada" | "aceptada" | "rechazada" | "sin-respuesta" | "retirada"
+  creadaEl DateTime @default(now())
+
+  turno Turno @relation(fields: [turnoId], references: [id], onDelete: Cascade)
+}
+
+// Un horario libre que Secretaría publicó desde la agenda de un médico para ofrecérselo a la lista de espera.
+model HorarioPublicado {
+  id       Int    @id @default(autoincrement())
+  medicoId Int
+  fecha    String // 'AAAA-MM-DD'
+  hora     String // 'HH:MM'
+
+  medico Medico @relation(fields: [medicoId], references: [id])
+}
+
+// Un horario libre que Secretaría sacó de la oferta: ya no se le ofrece a nadie de la lista de espera.
+model HorarioRetirado {
+  id       Int    @id @default(autoincrement())
+  medicoId Int
+  fecha    String // 'AAAA-MM-DD'
+  hora     String // 'HH:MM'
+
+  medico Medico @relation(fields: [medicoId], references: [id])
+}
+
+// -----------------------------------------------------------------------------
+// Salud del paciente
+// -----------------------------------------------------------------------------
+
+// Una receta que el médico le hace a un paciente.
+model Receta {
+  id           Int     @id @default(autoincrement())
+  pacienteId   Int
+  medicoId     Int
+  medicamento  String // "Amoxicilina 500 mg"
+  indicacion   String // cómo tomarlo
+  fechaEmision String // 'AAAA-MM-DD'
+  vigenciaDias Int     @default(30) // días de validez desde la emisión
+  codigo       String  @unique // el que se muestra en la farmacia ("RX-2026-0012")
+  riesgo       Boolean @default(false) // el médico la marcó como riesgosa junto con otros medicamentos
+
+  paciente Paciente @relation(fields: [pacienteId], references: [id])
+  medico   Medico   @relation(fields: [medicoId], references: [id])
+}
+
+// Un medicamento que el paciente toma por su cuenta (lo carga él; los recetados están en Receta).
+model MedicamentoPropio {
+  id         Int    @id @default(autoincrement())
+  pacienteId Int
+  nombre     String
+  dosis      String @default("") // cómo lo toma
+  motivo     String @default("") // para qué lo toma
+
+  paciente Paciente @relation(fields: [pacienteId], references: [id], onDelete: Cascade)
+}
+
+// Un estudio que el médico le pidió al paciente.
+model Estudio {
+  id           Int    @id @default(autoincrement())
+  pacienteId   Int
+  medicoId     Int // quién lo pidió
+  tipo         String // 3 letras para el ícono: "LAB", "ECO", "RX"
+  titulo       String
+  detalle      String @default("")
+  indicaciones String @default("") // una por línea
+  estado       String @default("pendiente") // "pendiente" | "vencido" | "realizado"
+
+  paciente Paciente @relation(fields: [pacienteId], references: [id])
+  medico   Medico   @relation(fields: [medicoId], references: [id])
+}
