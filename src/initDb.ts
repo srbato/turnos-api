@@ -2,9 +2,9 @@
 // Se ejecuta con npm run db:init, después de que "prisma db push" crea las tablas a partir de prisma/schema.prisma.
 // Solo carga los datos si la base está vacía: correrlo dos veces no duplica nada.
 import "dotenv/config";
-import { PrismaClient } from "@prisma/client";
 
-const prisma = new PrismaClient();
+import { cifrarContrasena } from "./contrasenas";
+import { prisma } from "./prisma";
 
 // -----------------------------------------------------------------------------
 // Fechas de los turnos de ejemplo
@@ -525,10 +525,10 @@ const SECRETARIAS_BELGRANO: SecretariaDeEjemplo[] = [
 // Funciones que guardan cada cosa en la base
 // -----------------------------------------------------------------------------
 
-// Contraseñas de prueba (las mismas que usaba la app). En el paso del login se van a guardar cifradas.
-const CONTRASENA_PACIENTE = "p";
-const CONTRASENA_MEDICO = "m";
-const CONTRASENA_SECRETARIA = "s";
+// Contraseñas de prueba (las mismas que usaba la app). Se guardan cifradas, como cualquier contraseña.
+const CONTRASENA_PACIENTE = cifrarContrasena("p");
+const CONTRASENA_MEDICO = cifrarContrasena("m");
+const CONTRASENA_SECRETARIA = cifrarContrasena("s");
 
 // Ids que va generando la base, para relacionar después turnos, recetas y estudios.
 const idsPacientes: Record<string, number> = {}; // clave del paciente -> id

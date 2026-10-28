@@ -3,7 +3,11 @@ import "dotenv/config";
 
 // Dependencias externas: servidor HTTP y CORS.
 import cors from "cors";
-import express from "express";
+import express, { NextFunction, Request, Response } from "express";
+
+// Rutas de cada recurso (cada archivo de src/rutas agrupa las de un recurso).
+import { rutasLogin } from "./rutas/login";
+import { rutasTurnos } from "./rutas/turnos";
 
 // -----------------------------------------------------------------------------
 // 1. Configuracion inicial
@@ -27,8 +31,28 @@ app.get("/api/health", (_req, res) => {
   res.json({ ok: true });
 });
 
+// Todas las rutas de los recursos empiezan con /api.
+app.use("/api", rutasLogin); // POST /api/login
+app.use("/api", rutasTurnos); // /api/turnos
+
 // -----------------------------------------------------------------------------
-// 3. Arranque del servidor
+// 3. Errores
+// -----------------------------------------------------------------------------
+
+// Cualquier ruta que no exista responde 404 en JSON (y no una página HTML).
+app.use((_req, res) => {
+  res.status(404).json({ error: "Esa ruta no existe" });
+});
+
+// Si una ruta falla por algo que no previmos (por ejemplo, la base no responde), Express 5 llega acá solo.
+// Se responde un 500 en JSON: un error honesto es mejor que dejar al cliente esperando.
+app.use((error: unknown, _req: Request, res: Response, _next: NextFunction) => {
+  console.error(error);
+  res.status(500).json({ error: "Error inesperado" });
+});
+
+// -----------------------------------------------------------------------------
+// 4. Arranque del servidor
 // -----------------------------------------------------------------------------
 
 app.listen(port, () => {
