@@ -7,9 +7,12 @@ import express, { NextFunction, Request, Response } from "express";
 
 // Rutas de cada recurso (cada archivo de src/rutas agrupa las de un recurso).
 import { rutasConsultorios } from "./rutas/consultorios";
+import { rutasEstudios } from "./rutas/estudios";
 import { rutasLogin } from "./rutas/login";
+import { rutasMedicamentos } from "./rutas/medicamentos";
 import { rutasMedicos } from "./rutas/medicos";
 import { rutasPacientes } from "./rutas/pacientes";
+import { rutasRecetas } from "./rutas/recetas";
 import { rutasSecretarias } from "./rutas/secretarias";
 import { rutasTurnos } from "./rutas/turnos";
 
@@ -42,7 +45,10 @@ app.use("/api", rutasConsultorios); // /api/consultorios y /api/coberturas
 app.use("/api", rutasPacientes); // /api/pacientes
 app.use("/api", rutasMedicos); // /api/medicos
 app.use("/api", rutasSecretarias); // /api/secretarias
-app.use("/api", rutasTurnos); // /api/turnos
+app.use("/api", rutasTurnos); // /api/turnos (con su consulta, preconsulta y avisos)
+app.use("/api", rutasRecetas); // /api/recetas
+app.use("/api", rutasMedicamentos); // /api/medicamentos
+app.use("/api", rutasEstudios); // /api/estudios
 
 // -----------------------------------------------------------------------------
 // 3. Errores

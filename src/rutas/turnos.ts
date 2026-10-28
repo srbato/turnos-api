@@ -21,6 +21,7 @@ const DATOS_DEL_TURNO = {
   cobertura: true,
   avisos: true,
   consulta: true,
+  preconsulta: true,
 };
 
 // ¿Ese horario del médico ya está tomado por otro turno? Los cancelados liberan el horario.
@@ -288,4 +289,61 @@ rutasTurnos.post("/turnos/:id/avisos", async (req, res) => {
 
   const aviso = await prisma.aviso.create({ data: { turnoId: id, fecha: fechaDeHoy() } });
   res.status(201).json(aviso);
+});
+
+// GET /api/turnos/:id/preconsulta
+// Devuelve la preconsulta del turno (404 si el paciente todavía no la hizo).
+rutasTurnos.get("/turnos/:id/preconsulta", async (req, res) => {
+  const id = parseId(req.params.id);
+  if (!id) {
+    return res.status(400).json({ error: "El id no es valido" });
+  }
+
+  const preconsulta = await prisma.preconsulta.findUnique({ where: { turnoId: id } });
+  if (!preconsulta) {
+    return res.status(404).json({ error: "Este turno no tiene preconsulta" });
+  }
+  res.json(preconsulta);
+});
+
+// PUT /api/turnos/:id/preconsulta
+// El paciente envía su preconsulta (o la vuelve a enviar corregida: reemplaza la anterior, por eso es PUT).
+// Recibe { motivo, duracion, sintomas: ["Fiebre", "Tos"], medicacion, alergias, adicional }; todos pueden ir vacíos
+// porque el asistente deja saltear preguntas. Solo se puede en turnos pendientes o confirmados.
+rutasTurnos.put("/turnos/:id/preconsulta", async (req, res) => {
+  const id = parseId(req.params.id);
+  if (!id) {
+    return res.status(400).json({ error: "El id no es valido" });
+  }
+
+  const turno = await prisma.turno.findUnique({ where: { id } });
+  if (!turno) {
+    return res.status(404).json({ error: "No existe un turno con ese id" });
+  }
+  if (turno.estado !== "pendiente" && turno.estado !== "confirmado") {
+    return res.status(400).json({ error: "Solo se hace la preconsulta de un turno pendiente o confirmado" });
+  }
+
+  const { motivo, duracion, sintomas, medicacion, alergias, adicional } = req.body;
+  // Los síntomas llegan como lista y se guardan como texto separado por comas.
+  let textoSintomas = "";
+  if (Array.isArray(sintomas)) {
+    textoSintomas = sintomas.map((sintoma) => String(sintoma).trim()).join(", ");
+  }
+
+  const datos = {
+    motivo: String(motivo ?? "").trim(),
+    duracion: String(duracion ?? "").trim(),
+    sintomas: textoSintomas,
+    medicacion: String(medicacion ?? "").trim(),
+    alergias: String(alergias ?? "").trim(),
+    adicional: String(adicional ?? "").trim(),
+  };
+  // upsert: si ya había una preconsulta la reemplaza (y actualiza la fecha de envío), y si no la crea.
+  const preconsulta = await prisma.preconsulta.upsert({
+    where: { turnoId: id },
+    update: { ...datos, enviadaEl: new Date() },
+    create: { ...datos, turnoId: id },
+  });
+  res.json(preconsulta);
 });
