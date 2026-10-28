@@ -1,0 +1,10 @@
+# Dependencias y código compilado: se regeneran con npm install y npm run build.
+node_modules/
+dist/
+
+# Variables de entorno: cada uno crea su .env a partir de .env.example.
+.env
+
+# La base SQLite es local: se crea con npm run db:init.
+*.db
+*.db-journal
