@@ -65,16 +65,39 @@ const FRANJAS_POR_DEFECTO = [
 // Datos de ejemplo
 // -----------------------------------------------------------------------------
 
-// Obras sociales. Las tres primeras son las que se pueden elegir en la app; el resto son las de pacientes de ejemplo.
+// Obras sociales y prepagas con sus planes. Cada plan es una cobertura; PAMI no tiene planes.
+// Se cargan en este orden, que es el que muestra la app.
 const COBERTURAS = [
-  { id: "swiss-smg20", nombre: "Swiss Medical SMG20" },
-  { id: "osde-210", nombre: "OSDE 210" },
-  { id: "galeno-220", nombre: "Galeno 220" },
-  { id: "osde-310", nombre: "OSDE 310" },
-  { id: "galeno-oro", nombre: "Galeno Oro" },
-  { id: "galeno-plata", nombre: "Galeno Plata" },
-  { id: "medife-bronce", nombre: "Medifé Bronce" },
-  { id: "pami", nombre: "PAMI" },
+  { id: "swiss-smg02", obraSocial: "Swiss Medical", plan: "SMG02" },
+  { id: "swiss-smg20", obraSocial: "Swiss Medical", plan: "SMG20" },
+  { id: "swiss-smg30", obraSocial: "Swiss Medical", plan: "SMG30" },
+  { id: "swiss-smg40", obraSocial: "Swiss Medical", plan: "SMG40" },
+  { id: "swiss-smg50", obraSocial: "Swiss Medical", plan: "SMG50" },
+
+  { id: "osde-210", obraSocial: "OSDE", plan: "210" },
+  { id: "osde-310", obraSocial: "OSDE", plan: "310" },
+  { id: "osde-410", obraSocial: "OSDE", plan: "410" },
+  { id: "osde-450", obraSocial: "OSDE", plan: "450" },
+  { id: "osde-510", obraSocial: "OSDE", plan: "510" },
+
+  { id: "galeno-220", obraSocial: "Galeno", plan: "Azul 220" },
+  { id: "galeno-plata", obraSocial: "Galeno", plan: "Plata 330" },
+  { id: "galeno-oro", obraSocial: "Galeno", plan: "Oro 440" },
+  { id: "galeno-550", obraSocial: "Galeno", plan: "550" },
+
+  { id: "medife-bronce", obraSocial: "Medifé", plan: "Bronce" },
+  { id: "medife-plata", obraSocial: "Medifé", plan: "Plata" },
+  { id: "medife-oro", obraSocial: "Medifé", plan: "Oro" },
+  { id: "medife-platinum", obraSocial: "Medifé", plan: "Platinum" },
+
+  { id: "sancor-1000", obraSocial: "Sancor Salud", plan: "1000" },
+  { id: "sancor-1500", obraSocial: "Sancor Salud", plan: "1500" },
+  { id: "sancor-3000", obraSocial: "Sancor Salud", plan: "3000" },
+  { id: "sancor-3500", obraSocial: "Sancor Salud", plan: "3500" },
+  { id: "sancor-4000", obraSocial: "Sancor Salud", plan: "4000" },
+  { id: "sancor-4500", obraSocial: "Sancor Salud", plan: "4500" },
+
+  { id: "pami", obraSocial: "PAMI", plan: "" }, // sin planes: afiliación única
 ];
 
 type PacienteDeEjemplo = {
@@ -646,8 +669,13 @@ async function guardarTurnos(turnos: TurnoDeEjemplo[]) {
 
 async function cargarDatosDeEjemplo() {
   // 1. Obras sociales (las usan los dos consultorios).
-  for (const cobertura of COBERTURAS) {
-    await prisma.cobertura.create({ data: cobertura });
+  // El nombre completo se arma con la obra social y el plan: "OSDE" + "210" = "OSDE 210".
+  for (let i = 0; i < COBERTURAS.length; i++) {
+    const cobertura = COBERTURAS[i];
+    const nombre = cobertura.plan === "" ? cobertura.obraSocial : `${cobertura.obraSocial} ${cobertura.plan}`;
+    await prisma.cobertura.create({
+      data: { id: cobertura.id, nombre: nombre, obraSocial: cobertura.obraSocial, plan: cobertura.plan, orden: i },
+    });
   }
 
   // 2. Consultorios Rivadavia, con su gente y sus turnos.

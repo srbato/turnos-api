@@ -48,9 +48,14 @@ model Consultorio {
 // -----------------------------------------------------------------------------
 
 // Catálogo de obras sociales (con su plan). El id es un texto fijo, el mismo que usa la app ("osde-210").
+// Un plan de una obra social o prepaga ("OSDE 210"), o una obra social sin planes ("PAMI").
+// La app las muestra en dos niveles: primero la obra social y, al tocarla, sus planes.
 model Cobertura {
-  id     String @id
-  nombre String // "OSDE 210"
+  id         String @id // "osde-210"
+  nombre     String // nombre completo: "OSDE 210"
+  obraSocial String @default("") // "OSDE"
+  plan       String @default("") // "210" ("" si la obra social no tiene planes, como PAMI)
+  orden      Int    @default(0) // orden en que se muestran en la app
 
   pacientes PacienteCobertura[]
   medicos   Medico[] // médicos que la aceptan

@@ -8,9 +8,10 @@ import { parseId, texto } from "../validaciones";
 export const rutasConsultorios = Router();
 
 // GET /api/coberturas
-// Devuelve el catálogo de obras sociales, para elegirlas al registrarse o en el perfil.
+// Devuelve el catálogo de obras sociales con sus planes, para elegirlas al registrarse o en el perfil.
+// Cada una trae su obra social y su plan, así la app las agrupa en dos niveles.
 rutasConsultorios.get("/coberturas", async (_req, res) => {
-  const coberturas = await prisma.cobertura.findMany({ orderBy: { nombre: "asc" } });
+  const coberturas = await prisma.cobertura.findMany({ orderBy: { orden: "asc" } });
   res.json(coberturas);
 });
 
